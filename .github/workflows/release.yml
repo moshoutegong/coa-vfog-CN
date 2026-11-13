@@ -49,6 +49,7 @@ jobs:
                         Copy-Item -LiteralPath "build/Release/$file" -Destination $package -ErrorAction Stop
                     }
                     Copy-Item -LiteralPath README.md, LICENSE -Destination $package -ErrorAction Stop
+                    Copy-Item -LiteralPath data/CoAVolFogSans-OFL.txt -Destination $package -ErrorAction Stop
                     Copy-Item -LiteralPath build/_deps/imgui-src/LICENSE.txt `
                         -Destination "$package/Dear-ImGui-LICENSE.txt"
                     @(

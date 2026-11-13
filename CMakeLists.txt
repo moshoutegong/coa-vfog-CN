@@ -99,6 +99,14 @@ include(cmake/WaterFftShaders.cmake)
 include(cmake/WaterShaders.cmake)
 add_custom_target(vf_shaders DEPENDS ${SHADER_HEADERS})
 
+set(SETTINGS_FONT ${CMAKE_CURRENT_SOURCE_DIR}/data/CoAVolFogSans.otf)
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${SETTINGS_FONT}")
+file(READ "${SETTINGS_FONT}" SETTINGS_FONT_BYTES HEX)
+string(REGEX REPLACE "([0-9a-f][0-9a-f])" "0x\\1," SETTINGS_FONT_BYTES "${SETTINGS_FONT_BYTES}")
+string(REPEAT "0x[0-9a-f][0-9a-f]," 16 SETTINGS_FONT_ROW)
+string(REGEX REPLACE "(${SETTINGS_FONT_ROW})" "    \\1\n" SETTINGS_FONT_BYTES "${SETTINGS_FONT_BYTES}")
+configure_file(cmake/settings_font.h.in "${CMAKE_CURRENT_BINARY_DIR}/settings_font.h" @ONLY)
+
 include(FetchContent)
 if(POLICY CMP0135)
     cmake_policy(SET CMP0135 NEW)
@@ -152,9 +160,9 @@ add_library(CoAVolFog SHARED
     src/water_spectrum.cpp
     src/CoAVolFog.def)
 add_dependencies(CoAVolFog vf_shaders)
-target_include_directories(CoAVolFog PRIVATE src ${SHADER_OUT})
+target_include_directories(CoAVolFog PRIVATE src ${SHADER_OUT} ${CMAKE_CURRENT_BINARY_DIR})
 target_compile_definitions(CoAVolFog PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX _CRT_SECURE_NO_WARNINGS)
-target_compile_options(CoAVolFog PRIVATE /W4 /wd4100 /arch:SSE2 /fp:fast /GS)
+target_compile_options(CoAVolFog PRIVATE /W4 /wd4100 /arch:SSE2 /fp:fast /GS /utf-8)
 target_link_libraries(CoAVolFog PRIVATE kernel32 user32 imgui)
 
 add_library(version SHARED proxy/version_proxy.cpp proxy/version.def)
@@ -166,9 +174,9 @@ add_executable(vfog_harness tests/harness.cpp src/client_ripple_sprites.cpp src/
                src/fog_data.cpp src/fog_model.cpp src/gpu_timing.cpp src/log.cpp src/noise_volume.cpp
                src/transparent_fog.cpp src/water_contacts.cpp src/water_data.cpp src/water_spectrum.cpp
                src/water_fft.cpp src/water_ripples.cpp src/status_log.cpp)
-target_include_directories(vfog_harness PRIVATE src ${SHADER_OUT})
+target_include_directories(vfog_harness PRIVATE src ${SHADER_OUT} ${CMAKE_CURRENT_BINARY_DIR})
 target_compile_definitions(vfog_harness PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX _CRT_SECURE_NO_WARNINGS)
-target_link_libraries(vfog_harness PRIVATE CoAVolFog user32 ole32 windowscodecs)
+target_link_libraries(vfog_harness PRIVATE CoAVolFog imgui user32 ole32 windowscodecs)
 add_custom_command(TARGET CoAVolFog POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_if_different ${CMAKE_CURRENT_SOURCE_DIR}/CoAVolFog.ini
             ${CMAKE_CURRENT_SOURCE_DIR}/data/fogdata.bin ${CMAKE_CURRENT_SOURCE_DIR}/data/waterdata.bin
