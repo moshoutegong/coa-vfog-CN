@@ -15,7 +15,7 @@
 
 ### 下载安装
 
-在 [本 fork 的 Actions](https://github.com/moshoutegong/coa-vfog-CN/actions) 打开通过的 **Windows release build**，从 **Artifacts** 下载 `CoAVolFog-Win32-…`。如果 [Releases](https://github.com/moshoutegong/coa-vfog-CN/releases) 已发布对应的中文构建，也可下载 `CoAVolFog-Win32.zip`。压缩包里的 `BUILD.txt` 记录构建提交和验证范围。
+从[最新发布](https://github.com/moshoutegong/coa-vfog-CN/releases/latest)下载 `CoAVolFog-Win32.zip`。也可在[汉化版构建页面](https://github.com/moshoutegong/coa-vfog-CN/actions/runs/43427238623)的 **Artifacts** 下载 `CoAVolFog-Win32-…`。压缩包里的 `BUILD.txt` 记录构建提交和验证范围。
 
 1. 完全退出游戏。使用 ArdenWoW 登录器时，先关闭它的「Volumetric fog and water」并完成原版模组的移除，再手动安装。登录器会核对它管理的文件，手动安装的汉化版可能会显示为冲突。
 2. 将 `version.dll`、`CoAVolFog.dll`、`fogdata.bin` 和 `waterdata.bin` 放到游戏可执行文件所在目录。
@@ -40,7 +40,7 @@ cmake --build build --config Release
 ctest --test-dir build -C Release --output-on-failure
 ```
 
-构建文件位于 `build/Release`。简体中文字形内嵌在 `CoAVolFog.dll` 中，字体授权见 [CoAVolFog Sans 许可证](data/CoAVolFogSans-OFL.txt)。`ctest` 的完整检查需要可用的 D3D9 设备。只运行无需显卡的检查时，在 CTest 命令末尾加 `-LE gpu`。
+构建文件位于 `build/Release`。简体中文字形内嵌在 `CoAVolFog.dll` 中，字体授权见 [CoAVolFog Sans 许可证](https://github.com/moshoutegong/coa-vfog-CN/blob/main/data/CoAVolFogSans-OFL.txt)。`ctest` 的完整检查需要可用的 D3D9 设备。只运行无需显卡的检查时，在 CTest 命令末尾加 `-LE gpu`。
 
 ### 兼容性与排查
 
