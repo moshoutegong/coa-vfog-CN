@@ -6,6 +6,8 @@
 #include <cmath>
 #include <cstdarg>
 #include <cstdio>
+#include <string>
+#include <string_view>
 
 namespace
 {
@@ -24,22 +26,30 @@ const ImVec4 kDrawnColour = {0.45f, 0.85f, 0.45f, 1.0f};
 const ImVec4 kSkippedColour = {0.95f, 0.75f, 0.35f, 1.0f};
 const ImVec4 kErrorColour = {1.0f, 0.4f, 0.4f, 1.0f};
 
-const char* const kQualityNames[] = {"Low: quarter resolution, 16 steps", "Medium: half resolution, 24 steps",
-                                     "High: half resolution, 32 steps"};
-const char* const kDebugViewNames[] = {"Off", "Fog radiance", "Transmittance", "Linear depth"};
-const char* const kLogLevelNames[] = {"Errors", "Info", "Debug"};
-const char* const kWaterQualityNames[] = {"Low: 128 waves, sky reflections only",
-                                          "Medium: 256 waves, scene reflections",
-                                          "High: 256 waves, finer scene reflections"};
-const char* const kWaterDebugViewNames[] = {"Off",        "Normals",      "Foam",   "Transmittance",
-                                           "Reflection", "Liquid class", "Ripples"};
+const char* const kQualityNames[] = {"低：四分之一分辨率，16 步", "中：半分辨率，24 步", "高：半分辨率，32 步"};
+const char* const kDebugViewNames[] = {"关闭", "雾光亮度", "透射率", "线性深度"};
+const char* const kLogLevelNames[] = {"错误", "信息", "调试"};
+const char* const kWaterQualityNames[] = {"低：128 网格，仅天空反射", "中：256 网格，场景反射",
+                                         "高：256 网格，精细场景反射"};
+const char* const kWaterDebugViewNames[] = {"关闭", "法线", "泡沫", "透射率", "反射", "液体类别", "涟漪"};
+
+void HelpTooltip(const char* help)
+{
+    if (ImGui::BeginItemTooltip())
+    {
+        ImGui::PushTextWrapPos(ImGui::GetFontSize() * 24.0f);
+        ImGui::TextUnformatted(help);
+        ImGui::PopTextWrapPos();
+        ImGui::EndTooltip();
+    }
+}
 
 template <int N>
 bool Choice(const char* label, int& value, int first, const char* const (&names)[N], const char* help)
 {
     int index = value - first;
     const bool changed = ImGui::Combo(label, &index, names, N);
-    ImGui::SetItemTooltip("%s", help);
+    HelpTooltip(help);
     if (changed)
         value = index + first;
     return changed;
@@ -72,7 +82,7 @@ bool Slider(const char* label, float& value, float lo, float hi, const char* for
             ImGuiSliderFlags flags = ImGuiSliderFlags_None)
 {
     const bool changed = ImGui::SliderFloat(label, &value, lo, hi, format, flags);
-    ImGui::SetItemTooltip("%s", help);
+    HelpTooltip(help);
     return changed;
 }
 
@@ -84,7 +94,7 @@ bool Multiplier(const char* label, float& value, const char* help)
 bool Toggle(const char* label, bool& value, const char* help)
 {
     const bool changed = ImGui::Checkbox(label, &value);
-    ImGui::SetItemTooltip("%s", help);
+    HelpTooltip(help);
     return changed;
 }
 
@@ -97,16 +107,119 @@ bool Toggle(const char* label, int& value, const char* help)
     return changed;
 }
 
+struct StatusTranslation
+{
+    std::string_view english;
+    const char* chinese;
+};
+
+constexpr StatusTranslation kStatusTranslations[] = {
+    {"waiting for the world to render", "等待场景渲染"},
+    {"stopped after an exception, see CoAVolFog.log", "发生异常后停止，详见 CoAVolFog.log"},
+    {"camera under liquid", "镜头位于液面下"},
+    {"the world render inputs were not captured", "未获取场景渲染数据"},
+    {"invalid frame inputs", "帧数据无效"},
+    {"camera under water", "镜头位于水下"},
+    {"the client's water colours are unavailable", "无法获取客户端水色"},
+    {"the water pass could not start", "无法启动水面渲染"},
+    {"the fog stopped after an exception", "雾效发生异常后停止"},
+    {"no water in view", "视野内没有水面"},
+    {"no fog device", "雾效渲染设备不可用"},
+    {"the water pass shaded nothing", "没有渲染到水面"},
+    {"the water pass did not finish", "水面渲染未完成"},
+    {"no liquid pass in this frame", "本帧没有液体渲染"},
+    {"hooks not installed", "渲染挂钩未安装"},
+    {"off", "已关闭"},
+    {"no render target", "缺少渲染目标"},
+    {"fog depth surface not bound", "雾效深度表面未绑定"},
+    {"surface description failed", "无法读取表面信息"},
+    {"render target and depth sizes differ", "渲染目标和深度表面尺寸不一致"},
+    {"render target and depth sample counts differ", "渲染目标和深度表面采样数不一致"},
+    {"world viewport outside the render target", "场景视口超出渲染目标"},
+    {"required shader unsupported", "不支持所需的着色器"},
+    {"shader creation failed", "无法创建着色器"},
+    {"state block recording failed", "无法记录渲染状态块"},
+    {"render target creation failed", "无法创建渲染目标"},
+    {"device not ready", "渲染设备尚未就绪"},
+    {"god ray targets unavailable", "阳光光束渲染目标不可用"},
+    {"no scene copy for the god rays", "阳光光束所需的场景副本不可用"},
+    {"view matrix not invertible", "视图矩阵不可逆"},
+    {"multisampled depth copy failed", "无法复制多重采样深度"},
+    {"water shader unsupported", "不支持水面着色器"},
+    {"water shader creation failed", "无法创建水面着色器"},
+    {"water state block recording failed", "无法记录水面渲染状态块"},
+    {"water copies unavailable", "水面渲染所需的副本不可用"},
+    {"water copy creation failed", "无法创建水面渲染所需的副本"},
+    {"flat water texture creation failed", "无法创建平静水面纹理"},
+    {"water disabled", "水面效果已关闭"},
+    {"no water data", "缺少水面数据"},
+    {"fog depth unavailable", "雾效深度不可用"},
+    {"scene colour copy failed", "无法复制场景颜色"},
+    {"water pass not armed", "水面渲染尚未准备好"},
+    {"no water drawn", "没有渲染到水面"},
+    {"no water preset for the drawn classes", "当前水域没有对应的预设"},
+    {"the game's Multisampling option is 1x", "游戏的多重采样设置为 1 倍"},
+    {"Multisampling=0 in CoAVolFog.ini", "CoAVolFog.ini 中的 Multisampling 为 0"},
+    {"the depth copy self-test failed", "深度复制自检失败"},
+    {"the game's depth buffer is unavailable", "游戏的深度缓冲不可用"},
+    {"the INTZ copy could not be created", "无法创建 INTZ 深度副本"},
+    {"the depth copy could not start", "无法启动深度复制"},
+    {"the device could not be created with the game's multisampling", "无法使用游戏的多重采样设置创建渲染设备"},
+    {"Reset with the game's multisampling failed", "无法使用游戏的多重采样设置重置渲染设备"},
+    {"the game's depth format has no stencil and D24S8 is not available with its multisampling",
+     "游戏深度格式缺少模板缓冲，当前多重采样也不支持 D24S8"},
+    {"the driver has no RESZ depth resolve and the adapter is not NVIDIA", "驱动不支持 RESZ 深度解析，且显卡非 NVIDIA"},
+    {"d3d9.dll is not the system copy (DXVK or another wrapper), so NVAPI cannot copy its depth",
+     "当前 d3d9.dll 由 DXVK 等封装层提供，NVAPI 无法复制深度"},
+    {"nvapi.dll is missing from the system folder", "系统目录中缺少 nvapi.dll"},
+    {"NvAPI_Initialize failed", "NVAPI 初始化失败"},
+    {"this NVAPI has no D3D9 depth copy", "此 NVAPI 版本不支持 D3D9 深度复制"},
+    {"no depth copy method (forced by the harness)", "测试程序强制关闭深度复制"},
+    {"lake", "湖泊"},
+    {"river", "河流"},
+    {"ocean", "海洋"},
+    {"interior", "室内水域"},
+    {"flat waves", "平静水面"},
+};
+
+std::string_view TranslateStatus(std::string_view reason)
+{
+    for (const auto& entry : kStatusTranslations)
+        if (entry.english == reason)
+            return entry.chinese;
+    return reason;
+}
+
+std::string TranslateWaterClasses(std::string_view classes)
+{
+    std::string translated;
+    while (!classes.empty())
+    {
+        const auto separator = classes.find_first_of(",;");
+        translated += TranslateStatus(classes.substr(0, separator));
+        if (separator == std::string_view::npos)
+            break;
+        translated += classes[separator] == ',' ? "、" : "；";
+        classes.remove_prefix(separator + 1);
+        const auto next = classes.find_first_not_of(' ');
+        if (next == std::string_view::npos)
+            break;
+        classes.remove_prefix(next);
+    }
+    return translated;
+}
+
 void DrawStatus(const FogFrameStatus& status)
 {
+    const std::string_view reason = TranslateStatus(status.reason ? status.reason : "原因未知");
     if (status.drawn)
     {
-        ImGui::TextColored(kDrawnColour, "Fog: Drawing");
-        if (status.reason && *status.reason)
-            ImGui::TextWrapped("%s", status.reason);
+        ImGui::TextColored(kDrawnColour, "体积雾：正在渲染");
+        if (!reason.empty())
+            ImGui::TextWrapped("%.*s", static_cast<int>(reason.size()), reason.data());
     }
     else
-        ImGui::TextColored(kSkippedColour, "Fog: Not drawing (%s)", status.reason);
+        ImGui::TextColored(kSkippedColour, "体积雾：未渲染（%.*s）", static_cast<int>(reason.size()), reason.data());
 }
 
 void StatusLine(const ImVec4& colour, const char* format, ...)
@@ -119,216 +232,202 @@ void StatusLine(const ImVec4& colour, const char* format, ...)
     ImGui::PushTextWrapPos(kNoTextWrap);
     ImGui::TextColored(colour, "%s", text);
     ImGui::PopTextWrapPos();
-    ImGui::SetItemTooltip("%s", text);
+    HelpTooltip(text);
 }
 
 void DrawWaterStatus(const WaterFrameStatus& status)
 {
     const bool named = status.reason && *status.reason;
     if (status.drawn && named)
-        StatusLine(kDrawnColour, "Water: Drawing (%s)", status.reason);
+        StatusLine(kDrawnColour, "水面：正在渲染（%s）", TranslateWaterClasses(status.reason).c_str());
     else if (status.drawn)
-        StatusLine(kDrawnColour, "Water: Drawing");
+        StatusLine(kDrawnColour, "水面：正在渲染");
     else
-        StatusLine(kSkippedColour, "Water: Not drawing (%s)", named ? status.reason : "no reason given");
+    {
+        const auto reason = TranslateStatus(named ? status.reason : "原因未知");
+        StatusLine(kSkippedColour, "水面：未渲染（%.*s）", static_cast<int>(reason.size()), reason.data());
+    }
 }
 
 void DrawMultisamplingStatus(const MultisamplingStatus& status)
 {
     if (status.method && *status.method)
-        StatusLine(kDrawnColour, "Antialiasing: multisampling %dx kept (depth copied by %s)", status.samples,
+        StatusLine(kDrawnColour, "抗锯齿：保留 %d 倍多重采样（通过 %s 复制深度）", status.samples,
                    status.method);
     else
-        StatusLine(ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled), "Antialiasing: multisampling off (%s)",
-                   status.off);
+    {
+        const auto reason = TranslateStatus(status.off ? status.off : "原因未知");
+        StatusLine(ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled), "抗锯齿：多重采样已关闭（%.*s）",
+                   static_cast<int>(reason.size()), reason.data());
+    }
 }
 
 bool DrawQuality(Config& c)
 {
-    const Section section("Quality", ImGuiTreeNodeFlags_DefaultOpen);
+    const Section section("画质", ImGuiTreeNodeFlags_DefaultOpen);
     if (!section)
         return false;
-    bool changed = Choice("Quality", c.quality, 1, kQualityNames, "Resolution and ray-march steps of the fog pass");
-    changed |= Slider("Temporal filter", c.temporal, 0.0f, 0.97f, "%.2f",
-                      "History weight of the temporal filter, 0 = off");
+    bool changed = Choice("画质", c.quality, 1, kQualityNames, "设置体积雾渲染的分辨率和光线步进次数。");
+    changed |= Slider("时域滤波", c.temporal, 0.0f, 0.97f, "%.2f",
+                      "上一帧在时域滤波中的权重。0 为关闭。");
     return changed;
 }
 
 bool DrawDensity(Config& c)
 {
-    const Section section("Density", ImGuiTreeNodeFlags_DefaultOpen);
+    const Section section("雾层与密度", ImGuiTreeNodeFlags_DefaultOpen);
     if (!section)
         return false;
-    bool changed = Multiplier("Density", c.density,
-                              "Fog thickness affects visibility and scattered light. Use Sun scatter for the halo.");
-    changed |= Multiplier("Haze", c.haze, "Distance haze where no Classic data exists");
-    changed |= Multiplier("Ground fog", c.groundFog, "Low ground mist where no Classic data exists");
-    changed |= Multiplier("Distance fog", c.farFog, "The distance fog that replaces the stock fog");
-    changed |= Toggle("Replace the stock fog", c.stockFog,
-                      "On: the volumetric distance fog replaces the client's linear fog. Off: keep the stock fog");
-    changed |= Toggle("Classic fog layers", c.dataMode,
-                      "Use the Classic client's fog layers where its lights cover the map. Off: derived layers "
-                      "everywhere");
-    changed |= Slider("Fog range", c.maxDistance, 200.0f, 5000.0f, "%.0f yd",
-                      "How far sky rays are integrated and the scale of the Classic distance curves");
-    changed |= Slider("Density variation", c.noiseAmount, 0.0f, 1.0f, "%.2f",
-                      "Spatial variation in haze and ground fog; 0 keeps the authored density smooth");
-    changed |= Slider("Variation scale", c.noiseScale, 0.001f, 1.0f, "%.3f",
-                      "Larger values make smaller mist patches", ImGuiSliderFlags_Logarithmic);
-    changed |= Slider("Mist drift", c.noiseWindSpeed, 0.0f, 10.0f, "%.2f yd/s",
-                      "Speed of drifting mist; 0 keeps it stationary");
-    changed |= Toggle("Classic fog noise", c.classicNoise,
-                      "Drifting fog banks where the Classic layers carry the modern client's noise, mostly in storms; "
-                      "it thins those layers to about half their density on average. Off: the density variation "
-                      "above applies to them instead");
+    bool changed = Multiplier("总体密度", c.density,
+                              "雾的浓度会影响能见度和散射光。日月周围的光晕可用「日月散射」调节。");
+    changed |= Multiplier("薄雾", c.haze, "缺少经典版数据时使用的远处薄雾。");
+    changed |= Multiplier("贴地雾", c.groundFog, "缺少经典版数据时使用的近地雾层。");
+    changed |= Multiplier("远景雾", c.farFog, "控制用于替代原版雾效的远景雾浓度。");
+    changed |= Toggle("替换原版雾效", c.stockFog,
+                      "开启后用体积远景雾替换客户端的线性雾。关闭后保留原版雾效。");
+    changed |= Toggle("经典版雾层", c.dataMode,
+                      "在经典版光照数据覆盖的区域使用其雾层。关闭后，各区域均使用推算出的雾层。");
+    changed |= Slider("雾效范围", c.maxDistance, 200.0f, 5000.0f, "%.0f 码",
+                      "控制天空方向的雾效积分距离，以及经典版距离衰减曲线的尺度。");
+    changed |= Slider("密度变化", c.noiseAmount, 0.0f, 1.0f, "%.2f",
+                      "控制薄雾和贴地雾的空间密度变化。0 时保持原设定的平滑密度。");
+    changed |= Slider("变化尺度", c.noiseScale, 0.001f, 1.0f, "%.3f",
+                      "数值越大，雾团越小。", ImGuiSliderFlags_Logarithmic);
+    changed |= Slider("雾团漂移", c.noiseWindSpeed, 0.0f, 10.0f, "%.2f 码/秒",
+                      "雾团的漂移速度。0 时保持静止。");
+    changed |= Toggle("经典版雾层噪声", c.classicNoise,
+                      "经典版雾层带有新版噪声数据时会出现飘动的雾团，多见于风暴，平均密度约为原来的一半。关闭后改用上方的密度变化设置。");
     return changed;
 }
 
 bool DrawLight(Config& c)
 {
-    const Section section("Light", ImGuiTreeNodeFlags_DefaultOpen);
+    const Section section("光照", ImGuiTreeNodeFlags_DefaultOpen);
     if (!section)
         return false;
-    bool changed = Multiplier("Sun scatter", c.sunScatter, "In-scattered sun or moon light: the halo around it");
-    changed |= Multiplier("Ambient", c.ambient, "Ambient fog brightness");
-    changed |= Multiplier("Exposure", c.exposure, "Brightness of the layers used where no Classic data exists");
-    changed |= Multiplier("Classic exposure", c.classicExposure, "Brightness of the Classic layers, 1 = default");
-    changed |= Toggle("Energy-normalised Classic phase", c.classicPhase,
-                      "Scatter the sun and moon into the Classic layers with an energy-normalised phase, as their "
-                      "authored intensities suggest the modern client does: dimmer horizon bands, a larger and "
-                      "brighter halo around the sun. Off: the phase peaks at 1 toward the light");
-    changed |= Toggle("Linear light", c.colorSpace,
-                      "Scatter and blend in linear light like the modern client, with a soft highlight roll-off. "
-                      "Off: gamma");
-    changed |= Toggle("Local lights", c.localLights, "Scatter nearby point lights from the world into the fog");
-    changed |= Slider("Local light intensity", c.localLightIntensity, 0.0f, 8.0f, "%.2f",
-                      "Brightness of nearby point lights in the fog");
-    changed |= Slider("Local light phase", c.localLightPhase, -0.9f, 0.9f, "%.2f",
-                      "How every point light scatters in the fog: 0 evenly in all directions; toward 0.9 mostly in "
-                      "the fog between you and the light; below 0 the fog behind the light, steeply brighter toward "
-                      "-0.9. The modern client uses one such value for all its lights; 0.3 is a calibration");
-    changed |= Slider("God rays", c.godRays, 0.0f, 4.0f, "%.2f",
-                      "Radial rays from the bright sky around the sun, 0 = off");
-    changed |= Toggle("Glow compensation", c.glowCompensation,
-                      "Pre-compensate the fog for the client's full-screen glow, which otherwise bleaches bright fog "
-                      "around the sun to white");
+    bool changed = Multiplier("日月散射", c.sunScatter, "太阳或月亮的光在雾中散射，形成光晕。");
+    changed |= Multiplier("环境亮度", c.ambient, "雾在环境光下的亮度。");
+    changed |= Multiplier("曝光", c.exposure, "缺少经典版数据时使用的雾层亮度。");
+    changed |= Multiplier("经典版雾层曝光", c.classicExposure, "经典版雾层的亮度。1 为默认值。");
+    changed |= Toggle("经典版散射能量归一化", c.classicPhase,
+                      "用能量归一化的相位函数计算日月光在经典版雾层中的散射。地平线的雾带会更暗，日晕更大、更亮。关闭时，朝向光源的相位函数峰值为 1。");
+    changed |= Toggle("线性光照", c.colorSpace,
+                      "在线性空间中计算散射和混合，使高光平滑过渡。关闭后使用伽马空间。");
+    changed |= Toggle("局部光源", c.localLights, "让场景中的附近点光源在雾里散射。");
+    changed |= Slider("局部光源强度", c.localLightIntensity, 0.0f, 8.0f, "%.2f",
+                      "附近点光源在雾中的亮度。");
+    changed |= Slider("局部光源散射方向", c.localLightPhase, -0.9f, 0.9f, "%.2f",
+                      "0 时向各方向均匀散射。接近 0.9 时光源与镜头之间的雾更亮。低于 0 时光源后方的雾更亮，接近 -0.9 "
+                      "时尤其明显。各点光源共用此值，0.3 为校准值。");
+    changed |= Slider("阳光光束", c.godRays, 0.0f, 4.0f, "%.2f",
+                      "从太阳周围明亮天空向外辐射的光束。0 为关闭。");
+    changed |= Toggle("辉光补偿", c.glowCompensation,
+                      "预先补偿客户端的全屏辉光，避免太阳附近的亮雾泛白。");
     return changed;
 }
 
 bool DrawGlowAndGrading(Config& c)
 {
-    const Section section("Glow and colour grading");
+    const Section section("辉光与调色");
     if (!section)
         return false;
-    bool changed = Toggle("Forever glow", c.foreverGlow,
-                          "Use the modern client's glow amount where Classic lights cover the camera: 0 on most "
-                          "continent lights, so the full-screen glow mostly disappears there. It replaces the client's "
-                          "own amount, Ascension's ambientGlow included, and fades back to it at the edge of Classic "
-                          "coverage. Off: the client's glow");
-    changed |= Slider("Colour grading", c.colorGrading, 0.0f, 1.0f, "%.2f",
-                      "Strength of the modern client's colour curve for the lights around the camera: brighter "
-                      "midtones, and the brightest highlights clipped to white. Names, the interface, the ghost view "
-                      "and the view under water are not graded. 0 = off");
+    bool changed = Toggle("Forever 辉光", c.foreverGlow,
+                          "在经典版光照覆盖区使用新版辉光强度，多数大陆光照的值为 0。它会替换客户端辉光（含 ambientGlow），"
+                      "并在覆盖区边缘渐变回客户端辉光。关闭后使用客户端辉光。");
+    changed |= Slider("色彩分级", c.colorGrading, 0.0f, 1.0f, "%.2f",
+                      "调整镜头附近的新版色彩曲线强度，提亮中间调，并把最高光截为白色。角色名字、界面、灵魂视角和水下画面不参与调色。0 为关闭。");
     return changed;
 }
 
 bool DrawViewDistance(Config& c)
 {
     bool lifted = c.farClipMax > kFarClipMaxKeepsClientCap;
-    bool changed = Toggle("Lift the continent view distance", lifted,
-                          "Ascension caps the continents at 791 yd; the engine allows 1583. Costs about four times "
-                          "the loaded terrain. Turning it on when it was off at start-up needs a client restart");
+    bool changed = Toggle("提高大陆视距上限", lifted,
+                          "Ascension 的大陆视距上限为 791 码，引擎最高支持 1583 码。加载的地形约为原来的四倍。如果启"
+                      "动时未开启，打开后需要重启客户端。");
     if (changed)
         c.farClipMax = lifted ? kEngineFarClipMax : kFarClipMaxKeepsClientCap;
     if (lifted)
-        changed |= Slider("View distance", c.farClipMax, std::ceil(kEngineFarClipMin), kEngineFarClipMax, "%.0f yd",
-                          "Continent view distance, within the client's own farclip setting",
+        changed |= Slider("视距", c.farClipMax, std::ceil(kEngineFarClipMin), kEngineFarClipMax, "%.0f 码",
+                          "大陆视距受客户端 farclip 设置限制。",
                           ImGuiSliderFlags_AlwaysClamp);
-    ImGui::TextDisabled("Applies at the next farclip change, map load or zone change.");
+    ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
+    ImGui::TextWrapped("下次调整 farclip、加载地图或切换区域时生效。");
+    ImGui::PopStyleColor();
     return changed;
 }
 
 bool DrawWorld(Config& c)
 {
-    const Section section("World");
+    const Section section("场景");
     if (!section)
         return false;
-    bool changed = Toggle("Fog under water", c.underwater, "Keep the effect while the camera is under water");
-    changed |= Toggle("Fog effects at their own distance", c.transparentFog,
-                      "Particles, spell effects and other see-through models are fogged by their own distance, as "
-                      "the stock client does, with a linear fog fitted to the volumetric fog within 100 yd; the fog "
-                      "is drawn before them, after the water. Beyond 100 yd the line is extended, so distant effects "
-                      "and fading models can be fogged more or less than the scene around them, and past its end "
-                      "distant glows vanish. Off: the fog is drawn once after the whole world and they take the fog "
-                      "of the scene behind them");
-    changed |= Toggle("Water writes depth", c.liquidDepth,
-                      "Let water surfaces write depth so water is fogged by its own distance; always on while Modern "
-                      "water is drawn");
-    changed |= Toggle("Interior-aware fog", c.interiorAware,
-                      "Fade outdoor fog and direct sunlight as the camera enters a building or cave");
-    changed |= Slider("Interior density", c.interiorDensity, 0.0f, 1.0f, "%.2f",
-                      "Outdoor fog density retained indoors");
-    changed |= Slider("Interior far fog", c.interiorFarFog, 0.0f, 1.0f, "%.2f",
-                      "Native distance-fog density retained indoors; outdoor distance fog is unchanged");
+    bool changed = Toggle("水下雾效", c.underwater, "镜头进入水下时继续渲染体积雾。");
+    changed |= Toggle("按距离渲染半透明特效雾", c.transparentFog,
+                      "水面之后、半透明特效之前绘制雾。粒子、法术等半透明物体按自身距离使用线性雾，在 100 码内拟合体积雾，超过后"
+                      "继续延伸。远处特效可能比周围场景更浓或更淡，超过雾效终点的辉光会消失。关闭后，场景绘制完再统一绘雾，半透明特效"
+                      "继承背景的雾效。");
+    changed |= Toggle("水面写入深度", c.liquidDepth,
+                      "使水面按自身距离计算雾效。渲染新版水面时始终写入深度。");
+    changed |= Toggle("室内雾效过渡", c.interiorAware,
+                      "镜头进入建筑或洞穴时，逐渐减弱室外雾和直射阳光。");
+    changed |= Slider("室内雾密度", c.interiorDensity, 0.0f, 1.0f, "%.2f",
+                      "室内保留的室外雾密度比例。");
+    changed |= Slider("室内远景雾", c.interiorFarFog, 0.0f, 1.0f, "%.2f",
+                      "室内保留的原版远景雾密度比例。室外远景雾独立计算。");
     changed |= DrawViewDistance(c);
     return changed;
 }
 
 bool DrawAntialiasing(Config& c)
 {
-    const Section section("Antialiasing");
+    const Section section("抗锯齿");
     if (!section)
         return false;
-    return Toggle("Keep the game's multisampling", c.multisampling,
-                  "Keep the game's Multisampling video option (smooth edges) when the graphics driver can copy its "
-                  "depth for the fog and water: NVIDIA through NVAPI, AMD and Intel through RESZ. Off: multisampling "
-                  "stays off. The game lists its Multisampling choices once per start, so turning this on takes "
-                  "effect after restarting the game; turning it off applies the next time the game resets its "
-                  "display, for example after changing Multisampling or the resolution in its Video options");
+    return Toggle("保留游戏多重采样", c.multisampling,
+                  "显卡驱动能为雾和水面复制多重采样深度时，保留游戏的多重采样抗锯齿。NVIDIA 使用 NVAPI，AMD 和 "
+                      "Intel 使用 RESZ。开启后需重启游戏，关闭后在下次重置显示时生效，例如修改分辨率或多重采样选项。");
 }
 
 bool DrawWater(Config& c)
 {
-    const Section section("Water");
+    const Section section("水面");
     if (!section)
         return false;
-    bool changed = Toggle("Modern water", c.water,
-                          "Shade lakes, rivers, the sea and indoor pools like the modern client; water surfaces write "
-                          "depth while it is drawn. Off: the client's own water");
-    changed |= Choice("Water quality", c.waterQuality, 1, kWaterQualityNames,
-                      "Size of the wave simulation and detail of the reflections");
-    changed |= Slider("Waves", c.waterWaves, 0.0f, 2.0f, "%.2f", "Wave height, 0 = flat water");
-    changed |= Slider("Wind", c.waterWind, 0.5f, 10.0f, "%.2f",
-                      "Wind that drives the waves; stronger wind makes longer, rougher waves");
-    changed |= Slider("Foam", c.waterFoam, 0.0f, 2.0f, "%.2f", "Foam on wave crests and along shores, 0 = none");
-    changed |= Slider("Reflections", c.waterReflections, 0.0f, 2.0f, "%.2f",
-                      "Reflections of the sky and the scene, 0 = none");
-    changed |= Slider("Sun highlight", c.waterSpecular, 0.0f, 4.0f, "%.2f",
-                      "Highlight of the sun or moon on the water, 0 = none");
-    changed |= Slider("Clarity", c.waterClarity, 0.25f, 4.0f, "%.2f",
-                      "How far you see into the water; larger is clearer", ImGuiSliderFlags_Logarithmic);
-    changed |= Slider("Zone colours", c.waterZoneColors, 0.0f, 1.0f, "%.2f",
-                      "How much the zone's own water colours from the client's lights tint the water, 0 = the modern "
-                      "colours only");
-    changed |= Slider("Ripples", c.waterRipples, 0.0f, 2.0f, "%.2f",
-                      "Wakes of players, creatures, pets and mounts in the water: a thin V behind a unit that runs or "
-                      "swims, one ring as it starts or stops, a calm surface while it stands. 0.5 = default, 0 = none");
-    changed |= Toggle("Client splashes", c.waterClientSplashes,
-                      "Keep the client's own flat splash and wake sprites while the ripples run; off hides them for "
-                      "every unit, also those beyond the ripples' reach");
-    changed |= Choice("Water view", c.waterDebugView, 0, kWaterDebugViewNames,
-                      "Show one input of the water shading instead of the scene");
+    bool changed = Toggle("新版水面", c.water,
+                          "使用新版效果渲染湖泊、河流、海洋和室内水池，同时让水面写入深度。关闭后使用客户端水面。");
+    changed |= Choice("水面画质", c.waterQuality, 1, kWaterQualityNames,
+                      "控制波浪模拟的网格尺寸和反射精细度。");
+    changed |= Slider("波浪", c.waterWaves, 0.0f, 2.0f, "%.2f", "波浪高度。0 为平静水面。");
+    changed |= Slider("风力", c.waterWind, 0.5f, 10.0f, "%.2f",
+                      "驱动波浪的风力。风越强，波长越长，水面起伏越大。");
+    changed |= Slider("泡沫", c.waterFoam, 0.0f, 2.0f, "%.2f", "浪尖和岸边的泡沫。0 为关闭。");
+    changed |= Slider("反射", c.waterReflections, 0.0f, 2.0f, "%.2f",
+                      "天空和场景的反射强度。0 为关闭。");
+    changed |= Slider("日月高光", c.waterSpecular, 0.0f, 4.0f, "%.2f",
+                      "太阳或月亮在水面上的高光。0 为关闭。");
+    changed |= Slider("清澈度", c.waterClarity, 0.25f, 4.0f, "%.2f",
+                      "影响水下可见深度。数值越大，水越清澈。", ImGuiSliderFlags_Logarithmic);
+    changed |= Slider("区域水色", c.waterZoneColors, 0.0f, 1.0f, "%.2f",
+                      "控制区域光照对水面颜色的影响。0 时只用新版水色。");
+    changed |= Slider("涟漪", c.waterRipples, 0.0f, 2.0f, "%.2f",
+                      "角色、生物、宠物和坐骑在水中奔跑或游动时会留下 V 形尾流，起步或停下时产生一圈涟漪，静止时水面趋于平静。默认"
+                      " 0.5，0 为关闭。");
+    changed |= Toggle("原版水花", c.waterClientSplashes,
+                      "生成涟漪时保留原版水花和尾流贴图。关闭后，所有单位的原版水花和尾流都会隐藏，包括涟漪模拟范围外的单位。");
+    changed |= Choice("水面调试视图", c.waterDebugView, 0, kWaterDebugViewNames,
+                      "查看水面着色的指定输入数据。");
     return changed;
 }
 
 bool DrawDebug(Config& c)
 {
-    const Section section("Debug");
+    const Section section("调试");
     if (!section)
         return false;
-    bool changed = Choice("View", c.debugView, 0, kDebugViewNames, "Show one input of the fog instead of the scene");
-    changed |= Toggle("Sun marker", c.sunMarker, "Red marker where the sun direction projects on screen");
-    changed |= Choice("Log level", c.logLevel, 0, kLogLevelNames, "Detail written to CoAVolFog.log");
+    bool changed = Choice("雾效调试视图", c.debugView, 0, kDebugViewNames, "查看雾效渲染的指定输入数据。");
+    changed |= Toggle("太阳位置标记", c.sunMarker, "用红色标记显示太阳方向在屏幕上的投影。");
+    changed |= Choice("日志级别", c.logLevel, 0, kLogLevelNames, "控制 CoAVolFog.log 记录的详细程度。");
     return changed;
 }
 }
@@ -394,7 +493,7 @@ void SettingsPanel::Draw(ConfigStore& store, const FogFrameStatus& fogStatus, co
 {
     PlaceWindow();
     const bool expanded =
-        ImGui::Begin("CoAVolFog", &open, ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoNavInputs);
+        ImGui::Begin("体积雾与水面###CoAVolFog", &open, ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoNavInputs);
     if (!expanded)
     {
         ImGui::End();
@@ -416,20 +515,21 @@ void SettingsPanel::DrawSaveRow(ConfigStore& store)
 {
     const bool unsaved = store.HasUnsavedChanges();
     ImGui::BeginDisabled(!unsaved);
-    if (ImGui::Button("Save"))
+    if (ImGui::Button("保存"))
         m_saveFailed = !store.Save();
-    ImGui::SetItemTooltip("Write the changed settings to CoAVolFog.ini");
+    ImGui::SetItemTooltip("将修改写入 CoAVolFog.ini。");
     ImGui::SameLine();
-    if (ImGui::Button("Revert"))
+    if (ImGui::Button("还原"))
     {
         store.Revert();
         m_saveFailed = false;
     }
-    ImGui::SetItemTooltip("Go back to the settings in CoAVolFog.ini");
+    ImGui::SetItemTooltip("重新读取 CoAVolFog.ini 中的设置。");
     ImGui::EndDisabled();
     ImGui::SameLine();
     if (m_saveFailed)
-        ImGui::TextColored(kErrorColour, "Could not write CoAVolFog.ini");
+        StatusLine(kErrorColour, "无法写入 CoAVolFog.ini");
     else
-        ImGui::TextDisabled("%s", unsaved ? "Unsaved changes" : "Matches CoAVolFog.ini");
+        StatusLine(ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled), "%s",
+                   unsaved ? "有未保存的修改" : "与 CoAVolFog.ini 一致");
 }

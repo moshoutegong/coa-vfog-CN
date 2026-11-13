@@ -10,6 +10,7 @@
 #include "log.h"
 #include "msaa_depth.h"
 #include "noise_volume.h"
+#include "settings_font.h"
 #include "water_contacts.h"
 #include "water_data.h"
 #include "water_fft.h"
@@ -17,6 +18,8 @@
 #include "water_spectrum.h"
 #include "status_log.h"
 #include "transparent_fog.h"
+
+#include "imgui.h"
 
 #include <windows.h>
 #include <d3d9.h>
@@ -1364,6 +1367,18 @@ void CheckOverlayKeyNames()
           "overlay key names read back as written");
 }
 
+void CheckSettingsFont()
+{
+    ImGui::CreateContext();
+    ImFontConfig config;
+    config.FontDataOwnedByAtlas = false;
+    ImFont* font = ImGui::GetIO().Fonts->AddFontFromMemoryTTF(const_cast<unsigned char*>(kSettingsFont),
+                                                            static_cast<int>(sizeof(kSettingsFont)), 16.0f, &config);
+    Check(font && font->IsGlyphInFont('7') && font->IsGlyphInFont(0x96fe) && font->IsGlyphInFont(0xff1a),
+          "the bundled settings font covers Latin text, Chinese text and full-width punctuation");
+    ImGui::DestroyContext();
+}
+
 void CheckSettingsSaveKeepsTheIni(const std::wstring& outDir, const std::wstring& shippedIni)
 {
     const std::wstring savedIni = FullPath(outDir + L"\\saved.ini");
@@ -1880,6 +1895,7 @@ int Run(const std::wstring& outDir, const std::string& dataPath, const std::wstr
     LogOpen(NarrowPath(g_harnessLog).c_str());
     CoInitializeEx(nullptr, COINIT_MULTITHREADED);
     CheckOverlayKeyNames();
+    CheckSettingsFont();
     CheckSettingsSaveKeepsTheIni(outDir, FullPath(iniPath));
     CheckFogDataBounds(outDir, dataPath);
     forever_look_checks::CheckForeverGlow();
