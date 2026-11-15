@@ -178,7 +178,7 @@ add_executable(vfog_harness tests/harness.cpp src/client_code.cpp src/client_lig
                src/fog_data.cpp src/fog_model.cpp src/gpu_timing.cpp src/log.cpp src/noise_volume.cpp
                src/transparent_fog.cpp src/water_contacts.cpp src/water_data.cpp src/water_spectrum.cpp
                src/water_fft.cpp src/water_ripples.cpp src/status_log.cpp)
-target_include_directories(vfog_harness PRIVATE src ${SHADER_OUT})
+target_include_directories(vfog_harness PRIVATE src ${SHADER_OUT} ${CMAKE_CURRENT_BINARY_DIR})
 target_compile_definitions(vfog_harness PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX _CRT_SECURE_NO_WARNINGS)
 target_link_libraries(vfog_harness PRIVATE LuxVelum imgui user32 ole32 windowscodecs)
 add_dependencies(vfog_harness version)
