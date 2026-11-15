@@ -2,15 +2,7 @@ name: Windows release build
 
 on:
   push:
-    branches: [main, st0ny-dev, st0ny-main]
-  pull_request:
-    branches: [main]
-  workflow_dispatch:
-    inputs:
-      refresh:
-        description: On st0ny-main, rebuild the newest release under its number instead of counting on
-        type: boolean
-        default: false
+    branches: [luxvelum-cn-build]
 
 permissions:
   contents: read
@@ -49,11 +41,11 @@ jobs:
         run: |
           $package = 'build/package'
           New-Item -ItemType Directory -Path $package | Out-Null
-          $files = 'LuxVelum.dll', 'LuxVelum.ini', 'fogdata.bin', 'waterdata.bin'
+          $files = 'LuxVelum.dll'
           foreach ($file in $files) {
             Copy-Item -LiteralPath "build/Release/$file" -Destination $package -ErrorAction Stop
           }
-          Copy-Item -LiteralPath README.md, LICENSE -Destination $package -ErrorAction Stop
+          Copy-Item -LiteralPath data/CoAVolFogSans-OFL.txt, LICENSE -Destination $package -ErrorAction Stop
           Copy-Item -LiteralPath build/_deps/imgui-src/LICENSE.txt -Destination "$package/Dear-ImGui-LICENSE.txt"
           @(
             "Commit: $env:GITHUB_SHA"
@@ -62,23 +54,13 @@ jobs:
             'Validation: build, source comments and CPU harness passed.'
             'D3D9 graphics checks and in-game validation were not run.'
           ) | Set-Content -Path "$package/BUILD.txt" -Encoding utf8
-          $loader = 'build/loader-package'
-          New-Item -ItemType Directory -Path $loader | Out-Null
-          Copy-Item -LiteralPath build/Release/version.dll, LICENSE -Destination $loader -ErrorAction Stop
+
 
       - name: Upload install archive
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: LuxVelum-Win32-${{ github.sha }}
           path: build/package/
-          if-no-files-found: error
-          retention-days: 30
-
-      - name: Upload the optional version.dll loader
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
-        with:
-          name: LuxVelum-version-dll-Win32-${{ github.sha }}
-          path: build/loader-package/
           if-no-files-found: error
           retention-days: 30
 
@@ -94,189 +76,3 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
-  release:
-    name: Publish the install archive as a release
-    needs: build
-    if: >-
-      github.ref == 'refs/heads/st0ny-main' &&
-      (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    permissions:
-      contents: write
-    steps:
-      - name: Download install files
-        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131
-        with:
-          name: LuxVelum-Win32-${{ github.sha }}
-          path: package
-
-      - name: Download the optional version.dll loader
-        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131
-        with:
-          name: LuxVelum-version-dll-Win32-${{ github.sha }}
-          path: loader
-
-      - name: Zip install files
-        run: |
-          (cd package && zip -r ../LuxVelum-Win32.zip .)
-          (cd loader && zip -r ../LuxVelum-version-dll-Win32.zip .)
-
-      - name: Create or refresh the release
-        id: publish
-        env:
-          GH_TOKEN: ${{ github.token }}
-          BRANCH: ${{ github.ref_name }}
-          SHA: ${{ github.sha }}
-          RUN_NUMBER: ${{ github.run_number }}
-          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-          REFRESH: ${{ inputs.refresh }}
-        run: |
-          short="${SHA:0:7}"
-          head=$(gh api "repos/${GITHUB_REPOSITORY}/branches/${BRANCH}" --jq .commit.sha)
-          if [ "$head" != "$SHA" ]; then
-            echo "::notice::${BRANCH} has moved on to ${head:0:7}; the superseded build ${short} gets no release"
-            exit 0
-          fi
-          releases=$(gh api --paginate "repos/${GITHUB_REPOSITORY}/releases?per_page=100" \
-            --jq '.[] | select(.prerelease | not) | select(.tag_name | test("^build-[0-9]+$")) |
-                  "\(.tag_name | ltrimstr("build-")) \(.target_commitish)"')
-          number=$(echo "$releases" | awk -v sha="$SHA" '$2 == sha { print $1; exit }')
-          highest=$(echo "$releases" | awk 'NF { print $1 }' | sort -n | tail -n 1)
-          if [ -z "$number" ] && [ "$REFRESH" = "true" ] && [ -n "$highest" ]; then
-            number="$highest"
-            gh release delete "build-${number}" --repo "$GITHUB_REPOSITORY" --cleanup-tag --yes
-          fi
-          if [ -z "$number" ]; then
-            number=$(( ${highest:-0} + 1 ))
-          fi
-          tag="build-${number}"
-          title="LuxVelum Build-${number} (${BRANCH} ${short})"
-          {
-            echo "LuxVelum: Atmospheric Immersion for Project Reforged — WoW 3.3.5."
-            echo
-            echo "Win32 Release build of \`${BRANCH}\` at ${short}."
-            echo
-            echo "With the client closed, unzip \`LuxVelum-Win32.zip\` into the client folder next to \`Wow.exe\`,"
-            echo "replacing \`LuxVelum.dll\`, \`LuxVelum.ini\` (the default settings), \`fogdata.bin\` and"
-            echo "\`waterdata.bin\`. \`Wow.exe\` loads \`LuxVelum.dll\` through the LuxVelum loader of St0ny's AIO WoW"
-            echo "EXE Patcher, or else through the optional \`version.dll\` loader below. Delete the \`version.dll\`"
-            echo "of a CoAVolFog or Luxveil package, or the client does not start."
-            echo "To keep your settings from Luxveil or CoAVolFog, leave"
-            echo "out \`LuxVelum.ini\`: an existing \`Luxveil.ini\`, else \`CoAVolFog.ini\`, is then taken over on"
-            echo "the first start. The old \`Luxveil.*\` and \`CoAVolFog.*\` DLL, INI and log files are no longer"
-            echo "used and can be deleted."
-            echo "\`BUILD.txt\` names the commit."
-            echo
-            echo "Optional: \`LuxVelum-version-dll-Win32.zip\` holds \`version.dll\`, a loader for a \`Wow.exe\`"
-            echo "without the LuxVelum loader patch. Unzip it next to \`Wow.exe\`; it forwards everything to the"
-            echo "system's \`version.dll\` and loads \`LuxVelum.dll\` before the client starts. On Linux with Proton"
-            echo "or Wine, also set the launch option \`WINEDLLOVERRIDES=version=n,b %command%\`. A patched"
-            echo "\`Wow.exe\` does not need it. Remove \`version.dll\` together with \`LuxVelum.dll\` to uninstall:"
-            echo "left on its own, it keeps the client from starting."
-            echo
-            echo "Validation: build, source comments and CPU harness passed in [run ${RUN_NUMBER}](${RUN_URL})."
-            echo "D3D9 graphics checks and in-game validation were not run."
-          } > notes.md
-          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
-            gh release upload "$tag" LuxVelum-Win32.zip LuxVelum-version-dll-Win32.zip --clobber \
-              --repo "$GITHUB_REPOSITORY"
-          else
-            gh release create "$tag" LuxVelum-Win32.zip LuxVelum-version-dll-Win32.zip --repo "$GITHUB_REPOSITORY" \
-              --target "$SHA" --title "$title" --notes-file notes.md
-          fi
-          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
-
-      - name: Delete every older release
-        if: ${{ steps.publish.outputs.tag != '' }}
-        env:
-          GH_TOKEN: ${{ github.token }}
-          TAG: ${{ steps.publish.outputs.tag }}
-        run: |
-          if ! older=$(gh api --paginate "repos/${GITHUB_REPOSITORY}/releases?per_page=100" --jq '.[].tag_name'); then
-            echo "::warning::the releases could not be listed, so the older ones stay"
-            exit 0
-          fi
-          for old in $older; do
-            [ "$old" = "$TAG" ] && continue
-            gh release delete "$old" --repo "$GITHUB_REPOSITORY" --cleanup-tag --yes ||
-              echo "::warning::the older release ${old} could not be deleted"
-          done
-
-  test-release:
-    name: Publish or remove the test release of st0ny-dev
-    needs: build
-    if: >-
-      github.ref == 'refs/heads/st0ny-dev' &&
-      (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    permissions:
-      contents: write
-    steps:
-      - name: Download install files
-        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131
-        with:
-          name: LuxVelum-Win32-${{ github.sha }}
-          path: package
-
-      - name: Zip install files
-        run: |
-          cd package
-          zip -r ../LuxVelum-Win32.zip .
-
-      - name: Replace the test release
-        env:
-          GH_TOKEN: ${{ github.token }}
-          BRANCH: ${{ github.ref_name }}
-          MAIN: st0ny-main
-          SHA: ${{ github.sha }}
-          RUN_NUMBER: ${{ github.run_number }}
-          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-        run: |
-          short="${SHA:0:7}"
-          head=$(gh api "repos/${GITHUB_REPOSITORY}/branches/${BRANCH}" --jq .commit.sha)
-          if [ "$head" != "$SHA" ]; then
-            echo "::notice::${BRANCH} has moved on to ${head:0:7}; the superseded build ${short} gets no test release"
-            exit 0
-          fi
-          releases=$(gh api --paginate "repos/${GITHUB_REPOSITORY}/releases?per_page=100" \
-            --jq '.[] | "\(.tag_name) \(.prerelease)"')
-          tests=$(echo "$releases" | awk '$1 ~ /^build-[0-9]+-test$/ { print $1 }')
-          for old in $tests; do
-            gh release delete "$old" --repo "$GITHUB_REPOSITORY" --cleanup-tag --yes ||
-              echo "::warning::the old test release ${old} could not be deleted"
-          done
-          ahead=$(gh api "repos/${GITHUB_REPOSITORY}/compare/${MAIN}...${SHA}" --jq .ahead_by)
-          if [ "$ahead" = "0" ]; then
-            echo "::notice::${MAIN} already contains ${short}; no test release"
-            exit 0
-          fi
-          highest=$(echo "$releases" |
-            awk '$2 == "false" && $1 ~ /^build-[0-9]+$/ { sub("build-", "", $1); print $1 }' | sort -n | tail -n 1)
-          number=$(( ${highest:-0} + 1 ))
-          tag="build-${number}-test"
-          title="LuxVelum TEST Build-${number} (${BRANCH} ${short})"
-          {
-            echo "LuxVelum: Atmospheric Immersion for Project Reforged — WoW 3.3.5."
-            echo
-            echo "**Test build, not a release.** It is the candidate for build ${number}: \`${BRANCH}\` at ${short},"
-            echo "${ahead} commit(s) ahead of \`${MAIN}\`. Use it only to test the next version; the current release"
-            echo "stays at releases/latest."
-            echo
-            echo "With the client closed, unzip \`LuxVelum-Win32.zip\` into the client folder next to \`Wow.exe\`,"
-            echo "replacing \`LuxVelum.dll\`, \`LuxVelum.ini\` (the default settings), \`fogdata.bin\` and"
-            echo "\`waterdata.bin\`. \`Wow.exe\` loads \`LuxVelum.dll\` through the LuxVelum loader of St0ny's AIO WoW"
-            echo "EXE Patcher; the package has no \`version.dll\` any more. Delete the \`version.dll\` of an earlier"
-            echo "package, also one from LuxVelum, or the client does not start."
-            echo "To keep your settings from Luxveil or CoAVolFog, leave"
-            echo "out \`LuxVelum.ini\`: an existing \`Luxveil.ini\`, else \`CoAVolFog.ini\`, is then taken over on"
-            echo "the first start. The old \`Luxveil.*\` and \`CoAVolFog.*\` DLL, INI and log files are no longer"
-            echo "used and can be deleted."
-            echo "\`BUILD.txt\` names the commit."
-            echo
-            echo "Validation: build, source comments and CPU harness passed in [run ${RUN_NUMBER}](${RUN_URL})."
-            echo "D3D9 graphics checks and in-game validation were not run."
-          } > notes.md
-          gh release create "$tag" LuxVelum-Win32.zip --repo "$GITHUB_REPOSITORY" --prerelease --latest=false \
-            --target "$SHA" --title "$title" --notes-file notes.md

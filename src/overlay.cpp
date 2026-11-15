@@ -4,6 +4,7 @@
 #include "d3d9_wrap.h"
 #include "hooks.h"
 #include "log.h"
+#include "settings_font.h"
 #include "settings_panel.h"
 
 #include "imgui.h"
@@ -403,7 +404,9 @@ void ConfigureImGui()
     io.ConfigFlags |= ImGuiConfigFlags_NoMouseCursorChange;
     ImFontConfig font;
     font.SizePixels = kPanelFontPixels;
-    io.Fonts->AddFontDefaultVector(&font);
+    font.FontDataOwnedByAtlas = false;
+    io.Fonts->AddFontFromMemoryTTF(const_cast<unsigned char*>(kSettingsFont), static_cast<int>(sizeof(kSettingsFont)),
+                                   kPanelFontPixels, &font);
     g_overlay.scale = 0.0f;
 }
 

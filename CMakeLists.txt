@@ -99,6 +99,14 @@ include(cmake/WaterFftShaders.cmake)
 include(cmake/WaterShaders.cmake)
 add_custom_target(vf_shaders DEPENDS ${SHADER_HEADERS})
 
+set(SETTINGS_FONT ${CMAKE_CURRENT_SOURCE_DIR}/data/CoAVolFogSans.otf)
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${SETTINGS_FONT}")
+file(READ "${SETTINGS_FONT}" SETTINGS_FONT_BYTES HEX)
+string(REGEX REPLACE "([0-9a-f][0-9a-f])" "0x\\1," SETTINGS_FONT_BYTES "${SETTINGS_FONT_BYTES}")
+string(REPEAT "0x[0-9a-f][0-9a-f]," 16 SETTINGS_FONT_ROW)
+string(REGEX REPLACE "(${SETTINGS_FONT_ROW})" "    \\1\n" SETTINGS_FONT_BYTES "${SETTINGS_FONT_BYTES}")
+configure_file(cmake/settings_font.h.in "${CMAKE_CURRENT_BINARY_DIR}/settings_font.h" @ONLY)
+
 include(FetchContent)
 if(POLICY CMP0135)
     cmake_policy(SET CMP0135 NEW)
@@ -155,9 +163,9 @@ add_library(LuxVelum SHARED
     src/water_spectrum.cpp
     src/LuxVelum.def)
 add_dependencies(LuxVelum vf_shaders)
-target_include_directories(LuxVelum PRIVATE src ${SHADER_OUT})
+target_include_directories(LuxVelum PRIVATE src ${SHADER_OUT} ${CMAKE_CURRENT_BINARY_DIR})
 target_compile_definitions(LuxVelum PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX _CRT_SECURE_NO_WARNINGS)
-target_compile_options(LuxVelum PRIVATE /W4 /wd4100 /arch:SSE2 /fp:fast /GS)
+target_compile_options(LuxVelum PRIVATE /W4 /wd4100 /arch:SSE2 /fp:fast /GS /utf-8)
 target_link_libraries(LuxVelum PRIVATE kernel32 user32 imgui)
 
 add_library(version SHARED proxy/version_proxy.cpp proxy/version.def)
@@ -172,7 +180,7 @@ add_executable(vfog_harness tests/harness.cpp src/client_code.cpp src/client_lig
                src/water_fft.cpp src/water_ripples.cpp src/status_log.cpp)
 target_include_directories(vfog_harness PRIVATE src ${SHADER_OUT})
 target_compile_definitions(vfog_harness PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX _CRT_SECURE_NO_WARNINGS)
-target_link_libraries(vfog_harness PRIVATE LuxVelum user32 ole32 windowscodecs)
+target_link_libraries(vfog_harness PRIVATE LuxVelum imgui user32 ole32 windowscodecs)
 add_dependencies(vfog_harness version)
 add_custom_command(TARGET LuxVelum POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_if_different ${CMAKE_CURRENT_SOURCE_DIR}/LuxVelum.ini
